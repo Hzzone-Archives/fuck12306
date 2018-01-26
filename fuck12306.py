@@ -79,9 +79,9 @@ class LoginTic(object):
         # 用户输入用户名，这里可以直接给定字符串
         userName = input('Please input your userName:')
         # 用户输入密码，这里也可以直接给定
-        # pwd = raw_input('Please input your password:')
+        pwd = input('Please input your password:')
         # 输入的内容不显示，但是会接收，一般用于密码隐藏
-        pwd = getpass.getpass('Please input your password:')
+        # pwd = getpass.getpass('Please input your password:')
         loginUrl = "https://kyfw.12306.cn/passport/web/login"
         data = {
             'username':userName,
@@ -98,8 +98,88 @@ class LoginTic(object):
         else:
             print('对不起，登录失败，请检查登录信息!')
 
+headers = {
+    "User-Agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.115 Safari/537.36"
+}
+
+### 验证码url
+verification_code_url = "https://kyfw.12306.cn/passport/captcha/captcha-image?login_site=E&module=login&rand=sjrand"
+
+
+### 验证码验证url
+yanzhengma_checkUrl = "https://kyfw.12306.cn/passport/captcha/captcha-check"
+
+
+### 登陆地址
+loginUrl = "https://kyfw.12306.cn/passport/web/login"
+
+### 验证码大致坐标
+yanSol = ['35,35', '105,35', '175,35', '245,35', '35,105', '105,105', '175,105', '245,105']
+
+def login(username, password):
+    # 创建一个网络请求session实现登录验证
+    session = requests.session()
+
+    # 获取验证码图片
+    response = session.get(url=verification_code_url, headers=headers, verify=False)
+    # 把验证码图片保存到本地
+    with open('img.jpg', 'wb') as f:
+        f.write(response.content)
+    #=======================================================================
+    # 根据打开的图片识别验证码后手动输入，输入正确验证码对应的位置，例如：2,5
+    # ---------------------------------------
+    #         |         |         |
+    #    0    |    1    |    2    |     3
+    #         |         |         |
+    # ---------------------------------------
+    #         |         |         |
+    #    4    |    5    |    6    |     7
+    #         |         |         |
+    # ---------------------------------------
+    #=======================================================================
+    '''TODO
+    破解验证码
+    '''
+    captcha_solution = input('请输入验证码位置，以","分割[例如2,5]:')
+    # # 验证结果
+    # 分割用户输入的验证码位置
+    soList = captcha_solution.split(',')
+    # 由于12306官方验证码是验证正确验证码的坐标范围,我们取每个验证码中点的坐标(大约值)
+    yanList = [yanSol[int(item)] for item in soList]
+    # 正确验证码的坐标拼接成字符串，作为网络请求时的参数
+    yanStr = ','.join(yanList)
+    data = {
+        'login_site': 'E',           #固定的
+        'rand': 'sjrand',            #固定的
+        'answer': yanStr    #验证码对应的坐标，两个为一组，跟选择顺序有关,有几个正确的，输入几个
+    }
+
+    # 发送验证
+    cont = session.post(url=yanzhengma_checkUrl, data=data, headers=headers, verify=False)
+    # 返回json格式的字符串，用json模块解析
+    dic = loads(cont.content.decode('utf-8'))
+    code = dic['result_code']
+    # 取出验证结果，4：成功  5：验证失败  7：过期
+
+    ### 登陆
+    if str(code) == '4':
+        # 发送登录请求的方法
+        data = {
+            'username': username,
+            'password': password,
+            'appid': 'otn'
+        }
+        result = session.post(url=loginUrl, data=data, headers=headers, verify=False)
+        print(result.content.decode("utf-8"))
+        dic = loads(result.content.decode("utf-8-sig"))
+        mes = dic['result_message']
+        # 结果的编码方式是Unicode编码，所以对比的时候字符串前面加u,或者mes.encode('utf-8') == '登录成功'进行判断，否则报错
+        if mes == u'登录成功':
+            print('恭喜你，登录成功，可以购票!')
+        else:
+            print('对不起，登录失败，请检查登录信息!')
+
 if __name__ == '__main__':
-    # checkYanZheng('0,3')
     login = LoginTic()
     yan = login.getImg()
     chek = False
@@ -111,3 +191,4 @@ if __name__ == '__main__':
         else:
             print('验证失败，请重新验证!')
     login.loginTo()
+    # login("1141408077@qq.com", "Qq1141408077")
